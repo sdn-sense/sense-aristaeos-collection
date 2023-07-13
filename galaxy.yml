@@ -1,0 +1,15 @@
+namespace: sense
+name: aristaeos
+version: 1.0.0
+readme: README.md
+authors:
+- Justas Balcas <juztas@gmail.com>
+description: Ansible Network Collections for RARE aristaEOS
+license_file: LICENCE
+tags: [RARE, aristaEOS, networking, P4]
+dependencies:
+  ansible.netcommon: '>=1.0.0'
+repository: https://github.com/sdn-sense/sense-aristaeos-collection
+documentation: https://github.com/sdn-sense/sense-aristaeos-collection
+homepage: https://github.com/sdn-sense/sense-aristaeos-collection
+issues: https://github.com/sdn-sense/sense-aristaeos-collection
