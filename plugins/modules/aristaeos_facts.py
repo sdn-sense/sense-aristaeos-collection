@@ -93,8 +93,19 @@ class Default(FactsBase):
     def getlldpIntfDict(self, lldpneiginfo):
         out = {}
         for item in lldpneiginfo:
+            # New Aristas
             if item.get('neighborInterfaceInfo', {}).get('interfaceId_v2', ''):
                 out['remote_port_id'] = item['neighborInterfaceInfo']['interfaceId_v2']
+            # Old Aristas
+            elif item.get('neighborInterfaceInfo', {}).get('interfaceIdType', '') in ['local', 'interfaceName']:
+                tmpintf = item['neighborInterfaceInfo'].get('interfaceId', '')
+                if tmpintf:
+                    out['remote_port_id'] = tmpintf.replace('"', '')
+            # Connection to server
+            elif item.get('neighborInterfaceInfo', {}).get('interfaceIdType', '') in ['macAddress']:
+                tmpintf = item['neighborInterfaceInfo'].get('interfaceDescription', '')
+                if tmpintf:
+                    out['remote_port_id'] = tmpintf.replace('"', '')
             if item.get('systemName', ''):
                 out['remote_system_name'] = item['systemName']
             if item.get('chassisId', ''):
