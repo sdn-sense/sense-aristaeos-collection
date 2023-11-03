@@ -3,6 +3,7 @@
 
 # Copyright: Contributors to the Ansible project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
+import traceback
 import re
 import json
 from ansible.module_utils.basic import AnsibleModule
@@ -12,6 +13,16 @@ from ansible_collections.sense.aristaeos.plugins.module_utils.network.aristaeos 
 from ansible_collections.sense.aristaeos.plugins.module_utils.network.aristaeos import aristaeos_argument_spec, check_args
 
 display = Display()
+
+def loadJson(indata, raiseExc=False):
+    data = {}
+    try:
+        data = json.loads(indata)
+    except Exception:
+        display.warning(traceback.format_exc())
+        if raiseExc:
+            raise Exception(traceback.format_exc())
+    return data
 
 
 class FactsBase:
@@ -46,7 +57,7 @@ class Default(FactsBase):
     def populate(self):
         super(Default, self).populate()
         # 0 command, get mac of system
-        data = json.loads(self.responses[0])
+        data = loadJson(self.responses[0])
         self.facts.setdefault('info', {'macs': []})
         if data.get('systemMacAddress'):
             self.facts['info']['macs'].append(data['systemMacAddress'])
@@ -54,7 +65,7 @@ class Default(FactsBase):
         data = self.responses[1]
         self.facts['config'] = data
         # 2 command, get interfaces
-        data = json.loads(self.responses[2])
+        data = loadJson(self.responses[2])
         self.facts.setdefault('interfaces', {})
         for key, vals in data.get('interfaces', {}).items():
             self.facts['interfaces'].setdefault(key, {})
@@ -71,7 +82,7 @@ class Default(FactsBase):
                 if out:
                     self.facts['interfaces'][key][key1] = out
         # 3 - get lldp information
-        data = json.loads(self.responses[3])
+        data = loadJson(self.responses[3])
         self.facts['lldp'] = {}
         for lldpIntf, lldpdata in data.get('lldpNeighbors', {}).items():
             lldpparsed = self.getlldpIntfDict(lldpdata.get('lldpNeighborInfo', []))
@@ -80,7 +91,7 @@ class Default(FactsBase):
                 self.facts['lldp'][lldpIntf] = lldpparsed
 
             # 4 - get vlan tagged interfaces;
-        data = json.loads(self.responses[4])
+        data = loadJson(self.responses[4])
         for key, vals in data.get('vlans', {}).items():
             vlanName = f"Vlan{key}"
             if vlanName in self.facts['interfaces']:
@@ -177,9 +188,9 @@ class Routing(FactsBase):
 
     def populate(self):
         super(Routing, self).populate()
-        data = json.loads(self.responses[0])
+        data = loadJson(self.responses[1], False)
         self.facts['ipv4'] = self.getRoutes(data)
-        data = json.loads(self.responses[1])
+        data = loadJson(self.responses[1], False)
         self.facts['ipv6'] = self.getRoutes(data)
 
     def getRoutes(self, data):
@@ -246,8 +257,12 @@ def main():
 
     for inst in instances:
         if inst:
-            inst.populate()
-            facts.update(inst.facts)
+            try:
+                inst.populate()
+                facts.update(inst.facts)
+            except Exception:
+                display.vvv(traceback.format_exc())
+                raise Exception(traceback.format_exc())
 
     ansible_facts = {}
     for key, value in iteritems(facts):
