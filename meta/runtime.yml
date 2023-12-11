@@ -2,8 +2,6 @@ plugin_routing:
   action:
     aristaeos_config:
       redirect: sense.aristaeos.aristaeos
-    aristaeos_command:
-      redirect: sense.aristaeos.aristaeos
     aristaeos_facts:
       redirect: sense.aristaeos.aristaeos
 

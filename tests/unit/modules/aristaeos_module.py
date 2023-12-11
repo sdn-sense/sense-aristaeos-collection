@@ -2,22 +2,25 @@
 # -*- coding: utf-8 -*-
 __metaclass__ = type
 
-import os
 import json
+import os
 import unittest
+
 from ansible.module_utils import basic
 from ansible.module_utils._text import to_bytes
 
 
 class AnsibleExitJson(Exception):
     """Exception class to be raised by module.exit_json and caught by the
-    test case """
+    test case"""
+
     pass
 
 
 class AnsibleFailJson(Exception):
     """Exception class to be raised by module.fail_json and caught by the
-    test case """
+    test case"""
+
     pass
 
 
@@ -57,7 +60,7 @@ def set_module_args(args):
     basic._ANSIBLE_ARGS = to_bytes(args)
 
 
-fixture_path = os.path.join(os.path.dirname(__file__), 'fixtures')
+fixture_path = os.path.join(os.path.dirname(__file__), "fixtures")
 fixture_data = {}
 
 
@@ -80,23 +83,26 @@ def load_fixture(name):
 
 
 class TestaristaEOSModule(ModuleTestCase):
-
-    def execute_module(self, failed=False, changed=False, commands=None, sort=True, defaults=False):
+    def execute_module(
+        self, failed=False, changed=False, commands=None, sort=True, defaults=False
+    ):
 
         self.load_fixtures(commands)
 
         if failed:
             result = self.failed()
-            self.assertTrue(result['failed'], result)
+            self.assertTrue(result["failed"], result)
         else:
             result = self.changed(changed)
-            self.assertEqual(result['changed'], changed, result)
+            self.assertEqual(result["changed"], changed, result)
 
         if commands is not None:
             if sort:
-                self.assertEqual(sorted(commands), sorted(result['updates']), result['updates'])
+                self.assertEqual(
+                    sorted(commands), sorted(result["updates"]), result["updates"]
+                )
             else:
-                self.assertEqual(commands, result['updates'], result['updates'])
+                self.assertEqual(commands, result["updates"], result["updates"])
 
         return result
 
@@ -105,7 +111,7 @@ class TestaristaEOSModule(ModuleTestCase):
             self.module.main()
 
         result = exc.exception.args[0]
-        self.assertTrue(result['failed'], result)
+        self.assertTrue(result["failed"], result)
         return result
 
     def changed(self, changed=False):
@@ -113,7 +119,7 @@ class TestaristaEOSModule(ModuleTestCase):
             self.module.main()
 
         result = exc.exception.args[0]
-        self.assertEqual(result['changed'], changed, result)
+        self.assertEqual(result["changed"], changed, result)
         return result
 
     def load_fixtures(self, commands=None):
