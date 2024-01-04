@@ -11,7 +11,6 @@ Email                   : juztas (at) gmail.com
 Date                    : 2023/11/05
 """
 import json
-import re
 # Copyright: Contributors to the Ansible project
 # GNU General Public License v3.0+ (see COPYING or https://www.gnu.org/licenses/gpl-3.0.txt)
 import traceback
@@ -29,13 +28,14 @@ display = Display()
 
 @functionwrapper
 def loadJson(indata, raiseExc=False):
+    """Load json data"""
     data = {}
     try:
         data = json.loads(indata)
-    except Exception:
-        display.warning(traceback.format_exc())
+    except Exception as ex:
+        display.vvv(traceback.format_exc())
         if raiseExc:
-            raise Exception(traceback.format_exc())
+            raise Exception(traceback.format_exc()) from ex
     return data
 
 
@@ -100,7 +100,9 @@ class Default(FactsBase):
                 out = action(vals)
                 if out:
                     self.facts["interfaces"][key][key1] = out
-        # 3 - get lldp information
+        # 3 - get switchport information
+        self.parse_switchport(self.facts["config"])
+        # 4 - get lldp information
         data = loadJson(self.responses[3])
         self.facts["lldp"] = {}
         for lldpIntf, lldpdata in data.get("lldpNeighbors", {}).items():
@@ -109,7 +111,7 @@ class Default(FactsBase):
                 lldpparsed["local_port_id"] = lldpIntf
                 self.facts["lldp"][lldpIntf] = lldpparsed
 
-            # 4 - get vlan tagged interfaces;
+        # 5 - get vlan tagged interfaces;
         data = loadJson(self.responses[4])
         for key, vals in data.get("vlans", {}).items():
             vlanName = f"Vlan{key}"
@@ -120,7 +122,9 @@ class Default(FactsBase):
                     self.facts["interfaces"][vlanName].setdefault("tagged", [])
                     self.facts["interfaces"][vlanName]["tagged"].append(intf)
 
-    def getlldpIntfDict(self, lldpneiginfo):
+    @staticmethod
+    def getlldpIntfDict(lldpneiginfo):
+        """Get lldp interface dict"""
         out = {}
         for item in lldpneiginfo:
             # New Aristas
@@ -152,18 +156,21 @@ class Default(FactsBase):
 
     # bandwidth -> bandwidth
     def getBW(self, data):
+        """Get bandwidth"""
         if "bandwidth" in data:
             return data["bandwidth"] // 1000000
         return None
 
     # duplex -> duplex
     def getDuplex(self, data):
+        """Get duplex"""
         if "duplex" in data:
             return data["duplex"]
         return None
 
     # lineProtocolStatus -> lineprotocol
     def getLineProtocol(self, data):
+        """Get line protocol"""
         if "lineProtocolStatus" in data:
             return data["lineProtocolStatus"]
         return None
@@ -171,6 +178,7 @@ class Default(FactsBase):
     # burnedInAddress -> macaddress
     # physicalAddress -> macaddress
     def getMacAddress(self, data):
+        """Get mac address"""
         for key in ["physicalAddress", "burnedInAddress"]:
             if key in data:
                 if data[key] not in self.facts["info"]["macs"]:
@@ -180,27 +188,47 @@ class Default(FactsBase):
 
     # description -> description
     def getDescription(self, data):
+        """Get description"""
         if "description" in data:
             return data["description"]
         return None
 
     # mtu -> mtu
     def getMTU(self, data):
+        """Get mtu"""
         if "mtu" in data:
             return data["mtu"]
         return None
 
     # interfaceStatus -> operstatus
     def getOperStatus(self, data):
+        """Get operstatus"""
         if "interfaceStatus" in data:
             return data["interfaceStatus"]
         return None
 
     def getChannelMember(self, data):
+        """Get channel member"""
         out = []
         if "memberInterfaces" in data:
             out = data["memberInterfaces"].keys()
         return out
+
+    def parse_switchport(self, data):
+        """Parse switchport information"""
+        interfaceSt = False
+        intfKey = None
+        for line in data.split("\n"):
+            line = line.strip()  # Remove all white spaces
+            display.v(f"{intfKey} {line}")
+            if line == "!" and interfaceSt:
+                interfaceSt = False  # This means interface ended!
+            elif line.startswith("interface"):
+                interfaceSt = True
+                intfKey = line[10:]
+            elif interfaceSt and line == "switchport mode trunk":
+                self.facts["interfaces"].setdefault(intfKey, {})
+                self.facts["interfaces"][intfKey]["switchport"] = "yes"
 
 
 @classwrapper
@@ -210,6 +238,7 @@ class Routing(FactsBase):
     COMMANDS = ["show ip route vrf all | json", "show ipv6 route vrf all | json"]
 
     def populate(self):
+        """Populate responses"""
         super(Routing, self).populate()
         data = loadJson(self.responses[1], False)
         self.facts["ipv4"] = self.getRoutes(data)
@@ -217,6 +246,7 @@ class Routing(FactsBase):
         self.facts["ipv6"] = self.getRoutes(data)
 
     def getRoutes(self, data):
+        """Get routes"""
         out = []
         for vrf, routes in data.get("vrfs", {}).items():
             for rfrom, rdict in routes.get("routes", {}).items():
@@ -282,13 +312,13 @@ def main():
             try:
                 inst.populate()
                 facts.update(inst.facts)
-            except Exception:
+            except Exception as ex:
                 display.warning(traceback.format_exc())
-                raise Exception(traceback.format_exc())
+                raise Exception(traceback.format_exc()) from ex
 
     ansible_facts = {}
     for key, value in iteritems(facts):
-        key = "ansible_net_%s" % key
+        key = f"ansible_net_{key}"
         ansible_facts[key] = value
 
     warnings = []
