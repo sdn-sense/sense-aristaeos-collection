@@ -32,10 +32,10 @@ def loadJson(indata, raiseExc=False):
     data = {}
     try:
         data = json.loads(indata)
-    except Exception:
+    except Exception as ex:
         display.vvv(traceback.format_exc())
         if raiseExc:
-            raise Exception(traceback.format_exc())
+            raise Exception(traceback.format_exc()) from ex
     return data
 
 
@@ -226,9 +226,9 @@ class Default(FactsBase):
             elif line.startswith("interface"):
                 interfaceSt = True
                 intfKey = line[10:]
-            elif interfaceSt and line == 'switchport mode trunk':
+            elif interfaceSt and line == "switchport mode trunk":
                 self.facts["interfaces"].setdefault(intfKey, {})
-                self.facts["interfaces"][intfKey]["switchport"] = 'yes'
+                self.facts["interfaces"][intfKey]["switchport"] = "yes"
 
 
 @classwrapper
@@ -312,9 +312,9 @@ def main():
             try:
                 inst.populate()
                 facts.update(inst.facts)
-            except Exception:
+            except Exception as ex:
                 display.warning(traceback.format_exc())
-                raise Exception(traceback.format_exc())
+                raise Exception(traceback.format_exc()) from ex
 
     ansible_facts = {}
     for key, value in iteritems(facts):
