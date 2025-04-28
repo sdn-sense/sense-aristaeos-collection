@@ -142,9 +142,10 @@ class Default(FactsBase):
             elif item.get("neighborInterfaceInfo", {}).get("interfaceIdType", "") in [
                 "macAddress"
             ]:
-                tmpintf = item["neighborInterfaceInfo"].get("interfaceDescription", "")
-                if tmpintf:
-                    out["remote_port_id"] = tmpintf.replace('"', "")
+                if item["neighborInterfaceInfo"].get("interfaceId", ""):
+                    tmpmac = item["neighborInterfaceInfo"].get("interfaceId", "").replace(".", "")
+                    splitMac = [tmpmac[index : index + 2] for index in range(0, len(tmpmac), 2)]
+                    out["remote_port_id"] = ":".join(splitMac)
             if item.get("systemName", ""):
                 out["remote_system_name"] = item["systemName"]
             if item.get("chassisId", ""):
