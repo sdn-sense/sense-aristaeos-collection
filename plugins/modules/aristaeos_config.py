@@ -28,7 +28,7 @@ from ansible.utils.display import Display
 from ansible_collections.ansible.netcommon.plugins.module_utils.network.common.config import (
     NetworkConfig, dumps)
 from ansible_collections.sense.aristaeos.plugins.module_utils.network.aristaeos import (
-    aristaeos_argument_spec, check_args, get_config, load_config, run_commands)
+    aristaeos_argument_spec, check_args, get_config, load_config)
 from ansible_collections.sense.aristaeos.plugins.module_utils.runwrapper import \
     functionwrapper
 
@@ -37,23 +37,16 @@ display = Display()
 
 @functionwrapper
 def get_candidate(module):
+    """Get the candidate configuration from the module."""
     candidate = NetworkConfig(indent=1)
     if module.params["src"]:
         candidate.load(module.params["src"])
-    elif module.params["lines"]:
-        parents = module.params["parents"] or list()
-        commands = module.params["lines"][0]
-        if (isinstance(commands, dict)) and (isinstance(commands["command"], list)):
-            candidate.add(commands["command"], parents=parents)
-        elif (isinstance(commands, dict)) and (isinstance(commands["command"], str)):
-            candidate.add([commands["command"]], parents=parents)
-        else:
-            candidate.add(module.params["lines"], parents=parents)
     return candidate
 
 
 @functionwrapper
 def get_running_config(module):
+    """Get the running configuration from the module."""
     contents = module.params["config"]
     if not contents:
         contents = get_config(module)
@@ -62,21 +55,21 @@ def get_running_config(module):
 
 @functionwrapper
 def main():
-    backup_spec = dict(filename=dict(), dir_path=dict(type="path"))
-    argument_spec = dict(
-        lines=dict(aliases=["commands"], type="list"),
-        parents=dict(type="list"),
-        src=dict(type="path"),
-        before=dict(type="list"),
-        after=dict(type="list"),
-        match=dict(default="line", choices=["line", "strict", "exact", "none"]),
-        replace=dict(default="line", choices=["line", "block"]),
-        update=dict(choices=["merge", "check"], default="merge"),
-        save=dict(type="bool", default=False),
-        config=dict(),
-        backup=dict(type="bool", default=False),
-        backup_options=dict(type="dict", options=backup_spec),
-    )
+    """Main function for the Ansible module."""
+    backup_spec = {"filename": {}, "dir_path": {"type": "path"}}
+    argument_spec = {
+        "lines": {"aliases": ["commands"], "type": "list"},
+        "parents": {"type": "list"},
+        "src": {"type": "path"},
+        "before": {"type": "list"},
+        "after": {"type": "list"},
+        "match": {"default": "line", "choices": ["line", "strict", "exact", "none"]},
+        "replace": {"default": "line", "choices": ["line", "block"]},
+        "update": {"choices": ["merge", "check"], "default": "merge"},
+        "save": {"type": "bool", "default": False},
+        "config": {},
+        "backup": {"type": "bool", "default": False},
+        "backup_options": {"type": "dict", "options": backup_spec}}
 
     argument_spec.update(aristaeos_argument_spec)
 
@@ -84,80 +77,40 @@ def main():
     module = AnsibleModule(
         argument_spec=argument_spec,
         mutually_exclusive=mutually_exclusive,
-        supports_check_mode=True,
-    )
+        supports_check_mode=True)
 
-    parents = module.params["parents"] or list()
-
-    match = module.params["match"]
-    replace = module.params["replace"]
-
-    warnings = list()
+    warnings = []
     check_args(module, warnings)
 
-    result = dict(changed=False, saved=False, warnings=warnings)
+    result = {"changed": False, "saved": False, "warnings": warnings}
 
     candidate = get_candidate(module)
 
-    if module.params["backup"]:
-        if not module.check_mode:
-            result["__backup__"] = get_config(module)
-    commands = list()
+    commands = []
 
-    if any((module.params["lines"], module.params["src"])):
-        if match != "none":
-            config = get_running_config(module)
-            config = NetworkConfig(contents=config, indent=1)
-            configobjs = candidate.difference(config, match=match, replace=replace)
-        else:
-            configobjs = candidate.items
-
-        if configobjs:
-            commands = dumps(configobjs, "commands")
-            if (
-                (isinstance(module.params["lines"], list))
-                and (isinstance(module.params["lines"][0], dict))
-                and set(["prompt", "answer"]).issubset(module.params["lines"][0])
-            ):
-
-                cmd = {
-                    "command": commands,
-                    "prompt": module.params["lines"][0]["prompt"],
-                    "answer": module.params["lines"][0]["answer"],
-                }
-                commands = [module.jsonify(cmd)]
-            else:
-                commands = commands.split("\n")
-
-            if module.params["before"]:
-                commands[:0] = module.params["before"]
-
-            if module.params["after"]:
-                commands.extend(module.params["after"])
-
-            if not module.check_mode and module.params["update"] == "merge":
-                load_config(module, commands)
-
-            result["changed"] = True
-            result["commands"] = commands
-            result["updates"] = commands
-
-    if module.params["save"]:
-        result["changed"] = True
-        if not module.check_mode:
+    if candidate.items:
+        commands = dumps(candidate.items, "commands")
+        if (
+            (isinstance(module.params["lines"], list))
+            and (isinstance(module.params["lines"][0], dict))
+            and set(["prompt", "answer"]).issubset(module.params["lines"][0])
+        ):
             cmd = {
-                "command": "copy running-config startup-config",
-                "prompt": r"\[confirm yes/no\]:\s?$",
-                "answer": "yes",
+                "command": commands,
+                "prompt": module.params["lines"][0]["prompt"],
+                "answer": module.params["lines"][0]["answer"],
             }
-            run_commands(module, [cmd])
-            result["saved"] = True
+            commands = [module.jsonify(cmd)]
         else:
-            module.warn(
-                "Skipping command `copy running-config startup-config`"
-                "due to check_mode.  Configuration not copied to "
-                "non-volatile storage"
-            )
+            commands = commands.split("\n")
+
+        if not module.check_mode and module.params["update"] == "merge":
+            config_block = "\n".join(commands)
+            load_config(module, config_block)
+
+        result["changed"] = True
+        result["commands"] = commands
+        result["updates"] = commands
 
     module.exit_json(**result)
 
