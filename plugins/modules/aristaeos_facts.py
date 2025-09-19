@@ -147,10 +147,7 @@ class Default(FactsBase):
             if vlanName not in self.facts["interfaces"]:
                 # This is being included (mainly for SENSE) as it means vlan interface is not present;
                 # but vlan is defined globally and on switchport
-                self.facts["interfaces"].setdefault(vlanName, {"bandwidth": None, "duplex": None,
-                                                               "lineprotocol": None, "macaddress": None,
-                                                               "description": None, "mtu": None,
-                                                               "operstatus": None, "channel-member": None})
+                self.facts["interfaces"].setdefault(vlanName, {})
             for intf in vals.get("interfaces", {}).keys():
                 if intf not in self.facts["interfaces"]:
                     continue
@@ -168,10 +165,7 @@ class Default(FactsBase):
             for vlan in trunvlans:
                 vlanName = f"Vlan{vlan}"
                 if vlanName not in self.facts["interfaces"]:
-                    self.facts["interfaces"].setdefault(vlanName, {"bandwidth": None, "duplex": None,
-                                                                   "lineprotocol": None, "macaddress": None,
-                                                                   "description": None, "mtu": None,
-                                                                   "operstatus": None, "channel-member": None})
+                    self.facts["interfaces"].setdefault(vlanName, {})
 
                 if key not in self.facts["interfaces"][vlanName].get("tagged", []):
                     self.facts["interfaces"][vlanName].setdefault("tagged", [])
