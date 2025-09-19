@@ -69,7 +69,8 @@ def main():
         "save": {"type": "bool", "default": False},
         "config": {},
         "backup": {"type": "bool", "default": False},
-        "backup_options": {"type": "dict", "options": backup_spec}}
+        "backup_options": {"type": "dict", "options": backup_spec},
+    }
 
     argument_spec.update(aristaeos_argument_spec)
 
@@ -77,7 +78,8 @@ def main():
     module = AnsibleModule(
         argument_spec=argument_spec,
         mutually_exclusive=mutually_exclusive,
-        supports_check_mode=True)
+        supports_check_mode=True,
+    )
 
     warnings = []
     check_args(module, warnings)

@@ -38,6 +38,34 @@ def loadJson(indata, raiseExc=False):
             raise Exception(traceback.format_exc()) from ex
     return data
 
+@functionwrapper
+def findvlanranges(vlanstr):
+    """Find vlan ranges"""
+    out = []
+    if not vlanstr:
+        return out
+    if vlanstr in ["ALL", "NONE"]:
+        # None - this is correct, none of them are whitelisted;
+        # All - this is mistake on device. Need to have switchport trunk allowed vlan none
+        return [] # For now lets ignore all and NONE, as no vlans.
+    for part in vlanstr.split(","):
+        if "-" in part:
+            start, end = part.split("-")
+            try:
+                start = int(start)
+                end = int(end)
+                if start > end:
+                    continue
+                for vlan in range(start, end + 1):
+                    out.append(vlan)
+            except Exception:
+                continue
+        else:
+            try:
+                out.append(int(part))
+            except Exception:
+                continue
+    return out
 
 @classwrapper
 class FactsBase:
@@ -69,6 +97,7 @@ class Default(FactsBase):
         "show interfaces | json",
         "show lldp neighbors detail | json",
         "show vlan | json",
+        "show interfaces switchport | json"
     ]
 
     def populate(self):
@@ -115,12 +144,39 @@ class Default(FactsBase):
         data = loadJson(self.responses[4])
         for key, vals in data.get("vlans", {}).items():
             vlanName = f"Vlan{key}"
-            if vlanName in self.facts["interfaces"]:
-                for intf in vals.get("interfaces", {}).keys():
-                    if intf not in self.facts["interfaces"]:
-                        continue
+            if vlanName not in self.facts["interfaces"]:
+                # This is being included (mainly for SENSE) as it means vlan interface is not present;
+                # but vlan is defined globally and on switchport
+                self.facts["interfaces"].setdefault(vlanName, {"bandwidth": None, "duplex": None,
+                                                               "lineprotocol": None, "macaddress": None,
+                                                               "description": None, "mtu": None,
+                                                               "operstatus": None, "channel-member": None})
+            for intf in vals.get("interfaces", {}).keys():
+                if intf not in self.facts["interfaces"]:
+                    continue
+                self.facts["interfaces"][vlanName].setdefault("tagged", [])
+                self.facts["interfaces"][vlanName]["tagged"].append(intf)
+
+        # 6 - interfaces switchport, to identify remaining vlans
+        data = loadJson(self.responses[5])
+        for key, vals in data.get("switchports", {}).items():
+            trunkmode = vals.get("switchportInfo", {}).get("mode", "")
+            if trunkmode != "trunk":
+                continue
+            trunkvlans = vals.get("switchportInfo", {}).get("trunkAllowedVlans", "")
+            trunvlans = findvlanranges(trunkvlans)
+            for vlan in trunvlans:
+                vlanName = f"Vlan{vlan}"
+                if vlanName not in self.facts["interfaces"]:
+                    self.facts["interfaces"].setdefault(vlanName, {"bandwidth": None, "duplex": None,
+                                                                   "lineprotocol": None, "macaddress": None,
+                                                                   "description": None, "mtu": None,
+                                                                   "operstatus": None, "channel-member": None})
+
+                if key not in self.facts["interfaces"][vlanName].get("tagged", []):
                     self.facts["interfaces"][vlanName].setdefault("tagged", [])
-                    self.facts["interfaces"][vlanName]["tagged"].append(intf)
+                    self.facts["interfaces"][vlanName]["tagged"].append(key)
+
 
     @staticmethod
     def getlldpIntfDict(lldpneiginfo):
