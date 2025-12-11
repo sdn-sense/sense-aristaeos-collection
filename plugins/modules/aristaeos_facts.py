@@ -204,14 +204,14 @@ class Default(FactsBase):
             cleaned = re.sub(r'[^0-9A-Fa-f]', '', mac)
             if len(cleaned) != 12:
                 display.warning(f"MAC address {mac} is not 12 hex digits long.")
-                return ""
+                return mac
             octets = [cleaned[i:i+2] for i in range(0, len(cleaned), 2)]
             return ":".join(octets)
         out = {}
         for item in lldpneiginfo:
             # New Aristas
             if item.get("neighborInterfaceInfo", {}).get("interfaceId_v2", ""):
-                out["remote_port_id"] = item["neighborInterfaceInfo"]["interfaceId_v2"]
+                out["remote_port_id"] = macNormalize(item["neighborInterfaceInfo"]["interfaceId_v2"])
             # Old Aristas
             elif item.get("neighborInterfaceInfo", {}).get("interfaceIdType", "") in [
                 "local",
@@ -221,9 +221,7 @@ class Default(FactsBase):
                 if tmpintf and (tmp1 := macNormalize(tmpintf)):
                     out["remote_port_id"] = tmp1
             # Connection to server
-            elif item.get("neighborInterfaceInfo", {}).get("interfaceIdType", "") in [
-                "macAddress"
-            ]:
+            elif item.get("neighborInterfaceInfo", {}).get("interfaceIdType", "") == "macAddress":
                 if item["neighborInterfaceInfo"].get("interfaceId", "") and (tmp2 := macNormalize(item["neighborInterfaceInfo"]["interfaceId"])):
                     out["remote_port_id"] = tmp2
             if item.get("systemName", ""):
