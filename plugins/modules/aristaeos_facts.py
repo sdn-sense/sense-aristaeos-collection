@@ -10,6 +10,7 @@ Email                   : juztas (at) gmail.com
 @Copyright              : General Public License v3.0+
 Date                    : 2023/11/05
 """
+import re
 import os
 import json
 import tempfile
@@ -197,6 +198,15 @@ class Default(FactsBase):
     @staticmethod
     def getlldpIntfDict(lldpneiginfo):
         """Get lldp interface dict"""
+        def macNormalize(mac):
+            """Normalize a MAC address by removing all non-hex characters."""
+            # Remove anything that is not a hex digit
+            cleaned = re.sub(r'[^0-9A-Fa-f]', '', mac)
+            if len(cleaned) != 12:
+                display.warning(f"MAC address {mac} is not 12 hex digits long.")
+                return ""
+            octets = [cleaned[i:i+2] for i in range(0, len(cleaned), 2)]
+            return ":".join(octets)
         out = {}
         for item in lldpneiginfo:
             # New Aristas
@@ -208,23 +218,18 @@ class Default(FactsBase):
                 "interfaceName",
             ]:
                 tmpintf = item["neighborInterfaceInfo"].get("interfaceId", "")
-                if tmpintf:
-                    out["remote_port_id"] = tmpintf.replace('"', "")
+                if tmpintf and (tmp1 := macNormalize(tmpintf)):
+                    out["remote_port_id"] = tmp1
             # Connection to server
             elif item.get("neighborInterfaceInfo", {}).get("interfaceIdType", "") in [
                 "macAddress"
             ]:
-                if item["neighborInterfaceInfo"].get("interfaceId", ""):
-                    tmpmac = item["neighborInterfaceInfo"].get("interfaceId", "").replace(".", "")
-                    splitMac = [tmpmac[index : index + 2] for index in range(0, len(tmpmac), 2)]
-                    out["remote_port_id"] = ":".join(splitMac)
+                if item["neighborInterfaceInfo"].get("interfaceId", "") and (tmp2 := macNormalize(item["neighborInterfaceInfo"]["interfaceId"])):
+                    out["remote_port_id"] = tmp2
             if item.get("systemName", ""):
                 out["remote_system_name"] = item["systemName"]
-            if item.get("chassisId", ""):
-                mac = item["chassisId"].replace(".", "")
-                split_mac = [mac[index : index + 2] for index in range(0, len(mac), 2)]
-                mac = ":".join(split_mac)
-                out["remote_chassis_id"] = mac
+            if tmp3 := macNormalize(item.get("chassisId", "")):
+                out["remote_chassis_id"] = tmp3
         return out
 
     # bandwidth -> bandwidth
